@@ -179,6 +179,7 @@ export default function AvatarScreen({ navigation, route }) {
                 return;
             }
 
+            const replicateApiKey = "r8_f0NlBcs6B3p3La7fyCeRigL4MpadaPg36WLDJ";
 
             // Determine if we're dealing with base64 data or a URL
             const isBase64 = typeof imageSource === 'string' && imageSource.startsWith('data:');
