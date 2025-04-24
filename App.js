@@ -1,21 +1,32 @@
+import React from 'react';
+import { StyleSheet } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+
+// Import screens
+import CameraScreen from './screens/CameraScreen';
+import AvatarScreen from './screens/AvatarScreen';
+import AdminScreen from './screens/AdminScreen';
+
+const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text>Open</Text>
-      <Text>Open up App.js to start working!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <NavigationContainer>
+      <StatusBar style="light" />
+      <Stack.Navigator
+        initialRouteName={"Camera"}
+        screenOptions={{
+          headerShown: false
+        }}
+      >
+        <Stack.Screen name="Camera" component={CameraScreen} />
+        <Stack.Screen name="Avatar" component={AvatarScreen} />
+        <Stack.Screen name="Admin" component={AdminScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+const styles = StyleSheet.create({});
