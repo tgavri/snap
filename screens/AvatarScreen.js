@@ -179,7 +179,7 @@ export default function AvatarScreen({ navigation, route }) {
                 return;
             }
 
-            const replicateApiKey = "r8_E9RL9JEmf5fltvfk9MNu7fprZfba3WR2K62VE";
+            const replicateApiKey = "Fjernet :(";
 
             // Prepare the input properly - IT MUST BE A STRING (URL or Base64 data URI)
             const imageInputString = imageSource; // Pass the URL string or base64 string directly
