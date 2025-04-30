@@ -14,11 +14,10 @@ const firebaseConfig = {
   authDomain: "torsdag-ee1cf.firebaseapp.com",
   databaseURL: "https://torsdag-ee1cf-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "torsdag-ee1cf",
-  storageBucket: "torsdag-ee1cf.appspot.com",
+  storageBucket: "torsdag-ee1cf.firebasestorage.app",
   messagingSenderId: "366920203555",
   appId: "1:366920203555:web:09ba2a3568317ded5ae096"
 };
-
 // Initialize Firebase App (if not already initialized)
 let app;
 if (getApps().length === 0) {

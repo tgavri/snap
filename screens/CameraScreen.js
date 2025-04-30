@@ -6,6 +6,39 @@ import { collection, addDoc, serverTimestamp, updateDoc, doc } from "firebase/fi
 import { storage, db } from '../firebase';
 import { MaterialIcons } from '@expo/vector-icons';
 
+// Separate helper function for upload logic - Simplified Error Handling
+async function uploadImageAndGetUrl(uri) {
+    console.log("Inside uploadImageAndGetUrl, URI:", uri);
+    // Removed internal try...catch
+    const response = await fetch(uri);
+    if (!response.ok) {
+        // Let this throw
+        throw new Error(`Helper: Failed to fetch image: ${response.status} ${response.statusText}`);
+    }
+    const imageBlob = await response.blob();
+    console.log(`Helper: Blob created - Size: ${imageBlob.size}, Type: ${imageBlob.type}`);
+
+    const timestamp = Date.now();
+    const uniqueNamePart = Math.random().toString(36).substring(2, 10);
+    const originalFileName = uri.substring(uri.lastIndexOf('/') + 1);
+    const filename = `${timestamp}_${uniqueNamePart}_${originalFileName}`;
+    const uploadPath = `uploads/${filename}`;
+    const storageRef = ref(storage, uploadPath);
+
+    console.log("Helper: Starting upload to (test path):", uploadPath);
+    const uploadTaskSnapshot = await uploadBytesResumable(storageRef, imageBlob);
+    console.log("Helper: Upload Task Completed. State:", uploadTaskSnapshot.state);
+
+    if (uploadTaskSnapshot.state !== 'success') {
+        // Let this throw
+        throw new Error(`Helper: Upload failed with state: ${uploadTaskSnapshot.state}`);
+    }
+
+    const downloadURL = await getDownloadURL(storageRef);
+    console.log('Helper: Upload successful! File available at', downloadURL);
+    return { downloadURL, uploadPath };
+}
+
 export default function CameraScreen({ navigation }) {
     // Remove Camera permissions, add ImagePicker permissions state
     // const [permission, requestPermission] = useCameraPermissions();
@@ -47,12 +80,16 @@ export default function CameraScreen({ navigation }) {
         }
         let result = await ImagePicker.launchImageLibraryAsync({
             allowsEditing: true,
-            quality: 0.5, // Keep quality lower for faster uploads
+            quality: 0.1, // Keep quality low for testing
         });
 
         if (!result.canceled) {
             setSelectedImageUri(result.assets[0].uri);
             console.log("Image selected:", result.assets[0].uri);
+            // Log dimensions if available
+            if (result.assets[0].width && result.assets[0].height) {
+                console.log(`Selected Image Dimensions: ${result.assets[0].width}x${result.assets[0].height}`);
+            }
         } else {
             console.log("User cancelled image picker");
         }
@@ -66,12 +103,16 @@ export default function CameraScreen({ navigation }) {
         }
         let result = await ImagePicker.launchCameraAsync({
             allowsEditing: true,
-            quality: 0.5,
+            quality: 0.1, // Keep quality low for testing
         });
 
         if (!result.canceled) {
             setSelectedImageUri(result.assets[0].uri);
             console.log("Photo taken:", result.assets[0].uri);
+            // Log dimensions if available
+            if (result.assets[0].width && result.assets[0].height) {
+                console.log(`Taken Photo Dimensions: ${result.assets[0].width}x${result.assets[0].height}`);
+            }
         } else {
             console.log("User cancelled camera");
         }
@@ -104,86 +145,48 @@ export default function CameraScreen({ navigation }) {
         }
     };
 
-    // 7. Refactored Function to Process and Upload Image Directly
+    // 7. Full Upload and Firestore Record Creation Function
     const processAndUploadImage = async () => {
         if (!selectedImageUri) {
             Alert.alert("No Image", "Please select or take a photo first.");
             return;
         }
-        if (isProcessing) return;
+        if (isProcessing) return; // Prevent double taps
 
         setIsProcessing(true);
-        let docId = null; // Keep track of the doc ID if created
+        console.log("--- Starting Upload and Firestore Record Creation --- ");
+        console.log("Selected image URI:", selectedImageUri);
+
+        let uploadId = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`; // Unique ID for this attempt
 
         try {
-            console.log("Processing and uploading image:", selectedImageUri);
+            // Step 1: Upload the image
+            console.log(`Attempting upload (ID: ${uploadId}) for:`, selectedImageUri);
+            const { downloadURL, uploadPath } = await uploadImageAndGetUrl(selectedImageUri);
+            console.log(`Upload successful (ID: ${uploadId}). URL: ${downloadURL}, Path: ${uploadPath}`);
 
-            // --- Start Upload Process (mimics working example) ---
-            const response = await fetch(selectedImageUri);
-            if (!response.ok) {
-                throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+            // Step 2: Create the Firestore record
+            console.log(`Creating Firestore record (ID: ${uploadId})...`);
+            const docId = await createFirestoreRecord(downloadURL, uploadPath, uploadId);
+
+            if (docId) {
+                console.log(`Firestore record created successfully (Doc ID: ${docId}, Upload ID: ${uploadId}).`);
+                Alert.alert("Upload Complete", "Your image has been uploaded and is being processed.");
+                // Navigate back to Avatar screen after successful upload and record creation
+                navigation.navigate('Avatar');
+                setSelectedImageUri(null); // Clear the preview
+            } else {
+                // Error handled within createFirestoreRecord, but we need to stop processing
+                console.error(`Failed to create Firestore record (Upload ID: ${uploadId}).`);
+                Alert.alert("Upload Error", "Could not save upload details. Please try again.");
             }
-            const imageBlob = await response.blob();
-            console.log(`Blob created - Size: ${imageBlob.size}, Type: ${imageBlob.type}`);
-
-            // Create unique path and upload ID
-            const timestamp = Date.now();
-            const uniqueNamePart = Math.random().toString(36).substring(2, 10);
-            const filename = `${timestamp}_${uniqueNamePart}.jpg`; // More unique filename
-            const uploadPath = `avatar-requests/public-upload/${filename}`;
-            const uploadId = `${timestamp}_${uniqueNamePart}`; // Use the same unique part for uploadId
-            const storageRef = ref(storage, uploadPath);
-            const metadata = { contentType: imageBlob.type || 'image/jpeg' };
-
-            console.log("Starting upload to:", uploadPath);
-            // Use direct await for uploadBytesResumable
-            const uploadTaskSnapshot = await uploadBytesResumable(storageRef, imageBlob, metadata);
-            console.log("Upload Task Completed. State:", uploadTaskSnapshot.state);
-
-            // Check if upload was successful (state should be 'success')
-            if (uploadTaskSnapshot.state !== 'success') {
-                // This case might not happen often with await, but good practice
-                throw new Error(`Upload failed with state: ${uploadTaskSnapshot.state}`);
-            }
-
-            // Get Download URL
-            const downloadURL = await getDownloadURL(storageRef); // Use storageRef directly
-            console.log('Upload successful! File available at', downloadURL);
-            // --- End Upload Process ---
-
-            // --- Create Firestore Record (after successful upload) ---
-            docId = await createFirestoreRecord(downloadURL, uploadPath, uploadId);
-            if (!docId) {
-                // Error creating Firestore record handled in createFirestoreRecord
-                throw new Error("Upload succeeded but failed to create database record.");
-            }
-            // --- End Firestore Record Creation ---
-
-            // Navigate on full success
-            Alert.alert('Success!', 'Your photo has been submitted for avatar generation.');
-            navigation.navigate('Avatar', { newAvatarId: docId });
 
         } catch (error) {
-            console.error("Error in processAndUploadImage: ", error);
-            // More specific error reporting
-            let alertMessage = 'Could not process the photo. Please try again.';
-            if (error.code) { // Firebase specific error
-                alertMessage = `Error: ${error.code} - ${error.message}`;
-            } else if (error.message) {
-                alertMessage = error.message;
-            }
-            Alert.alert('Upload Failed', alertMessage);
-
-            // Optional: If Firestore record was created but something failed after,
-            // you might want to update its status to 'error' here.
-            // if (docId) { updateDoc(...) } 
-
+            console.error(`Error during upload or Firestore creation (Upload ID: ${uploadId}):`, error);
+            Alert.alert("Upload Failed", `An error occurred during upload: ${error.message || 'Unknown error'}. Please try again.`);
+            // Consider adding retry logic here or letting the user retry manually
         } finally {
-            // Reset UI regardless of success or failure
-            setTimeout(() => {
-                setSelectedImageUri(null);
-                setIsProcessing(false);
-            }, 500);
+            setIsProcessing(false); // Ensure loading indicator is always turned off
         }
     };
 
@@ -251,7 +254,7 @@ export default function CameraScreen({ navigation }) {
                         {isProcessing ? (
                             <ActivityIndicator color="#fff" />
                         ) : (
-                            <Text style={styles.confirmButtonText}>Generate Avatar</Text>
+                            <Text style={styles.confirmButtonText}>Confirm & Upload</Text>
                         )}
                     </TouchableOpacity>
                 )}

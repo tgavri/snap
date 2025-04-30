@@ -179,25 +179,12 @@ export default function AvatarScreen({ navigation, route }) {
                 return;
             }
 
-            const replicateApiKey = "r8_f0NlBcs6B3p3La7fyCeRigL4MpadaPg36WLDJ";
+            const replicateApiKey = "r8_E9RL9JEmf5fltvfk9MNu7fprZfba3WR2K62VE";
 
-            // Determine if we're dealing with base64 data or a URL
-            const isBase64 = typeof imageSource === 'string' && imageSource.startsWith('data:');
+            // Prepare the input properly - IT MUST BE A STRING (URL or Base64 data URI)
+            const imageInputString = imageSource; // Pass the URL string or base64 string directly
 
-            // If it's a base64 string, make sure it's not too big (Replicate has limits)
-            if (isBase64 && imageSource.length > 10000000) {  // ~10MB limit
-                console.error("Base64 string too large for API");
-                await updateDoc(doc(db, 'avatarGenerations', avatarId), {
-                    status: 'error',
-                    error: 'Image too large for processing'
-                });
-                return;
-            }
-
-            // Prepare the input properly
-            const imageInput = isBase64 ? imageSource : { url: imageSource };
-
-            console.log(`Processing avatar ${avatarId} with ${isBase64 ? 'base64 data' : 'URL'}`);
+            console.log(`Processing avatar ${avatarId} with ${typeof imageInputString === 'string' && imageInputString.startsWith('data:') ? 'base64 data' : 'URL'}: ${imageInputString.substring(0, 100)}...`); // Log type and start of string
 
             const response = await fetch("https://api.replicate.com/v1/predictions", {
                 method: "POST",
@@ -206,10 +193,11 @@ export default function AvatarScreen({ navigation, route }) {
                     "Authorization": `Token ${replicateApiKey}`
                 },
                 body: JSON.stringify({
-                    version: "798c9c78ca767f5a9bbc9b020b9c8b1c5c064fa20096688620c4eb3e6b8f2c48",
                     input: {
-                        image: imageInput,
-                        prompt: "Generate an anime style avatar, highly detailed portrait"
+                        face_image: imageInputString,
+                        prompt: "Anime style avatar portrait",
+                        user_gender: "male",
+                        num_outputs: 1
                     }
                 })
             });
